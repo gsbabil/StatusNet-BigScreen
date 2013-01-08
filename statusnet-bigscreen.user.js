@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name           StatusNet-BigScreen
 // @namespace      status.inside.nicta.com.au/gsbabil
-// @description    StatusNet Auto Refresh and QR Code
+// @description    StatusNet Auto-refresh, QR-code and Infinite-scroll
 // @require        http://code.jquery.com/jquery-latest.min.js
 // @include        http://status.inside.nicta.com.au/
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.5
+// @version        0.0.6
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
 
@@ -18,7 +18,7 @@ var spinner_chrome = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYA
 var spinner = "";
 var hostname = "status.inside.nicta.com.au";
 var title = "Nicta StatusNet";
-var blacklist = [hostname, "^mailto", "^javascript", "geonames.org", ];
+var blacklist = [hostname, "^mailto:", "^javascript:", "geonames\.org", ];
 var whitelist = [hostname + "/url", ];
 var refreshInterval = 10000;
 var refreshTimeout;
@@ -64,7 +64,7 @@ function refreshContent() {
       });
     }
   }
-  refreshTimeout = setTimeout(refreshContent, 1000);
+  refreshTimeout = window.setTimeout(refreshContent, 1000);
 }
 
 function infiniteScroll() {
@@ -85,7 +85,7 @@ function infiniteScroll() {
           $("img#spinner").remove();
           mutation();
         });
-        refreshTimeout = setTimeout(refreshContent, 1000);
+        refreshTimeout = window.setTimeout(refreshContent, 1000);
       }
     } else {
       debugLog("infiniteScroll() --> inprogress");
@@ -167,32 +167,34 @@ function add_qrcode(elem) {
     /* Babil: Apply blacklist filter */
     for(var b = 0; b < blacklist.length; b++) {
       var regex = new RegExp(blacklist[b]);
-      if(links[k].href.indexOf(regex) >= 0) {
+      if(links[k].href.search(regex) >= 0) {
         add_qr = false;
-        debugLog("Blacklist:" + links[k].href);
+        debugLog("Blacklist: " + links[k].href);
         break;
       }
     }
 
     /* Babil: Force whitelist filter now */
-    for(var b = 0; b < whitelist.length; b++) {
-      var regex = new RegExp(whitelist[b]);
-      if(links[k].href.indexOf(whitelist[b]) >= 0) {
-        add_qr = true;
-        debugLog("Whitelist:" + links[k].href);
-        break;
+    if (add_qr == false) {
+      for(var b = 0; b < whitelist.length; b++) {
+        var regex = new RegExp(whitelist[b]);
+        if(links[k].href.search(regex) >= 0) {
+          add_qr = true;
+          debugLog("Whitelist: " + links[k].href);
+          break;
+        }
       }
     }
 
     /* Babil: Add the QR code now */
-    if(add_qr == true && isOnScreen(links[k])) {
+    if(add_qr == true && isOnScreen(links[k]) && $(links[k]).data("qrcoded") != 1) {
       qrcodify_link(links[k]);
     }
   }
 }
 
 function qrcodify_link(link) {
-  var daddy = $(link).parents("div.entry-title");
+
   if(link.href.length < 50) {
     size = "100x100";
   } else if(link.href.length < 120) {
@@ -200,13 +202,15 @@ function qrcodify_link(link) {
   } else {
     size = "150x150";
   }
-  var qrcoded = $(link).data("qrcoded")
-  var qrdiv = daddy.children("div.qrcodes");
-  if(qrdiv.length == 0 || qrcoded != 1) {
+
+  var daddy = $(link).parents("div.entry-title");
+  var qrdiv = daddy.children("div.qrcode");
+
+  if(qrdiv.length == 0 && $(link).data("qrcoded") != 1) {
     $(link).data("qrcoded", 1);
-    qrdiv = daddy.append('<div class="qrcodes" style="float: right; max-width: 175px"><span id="spinner"><img width="16px" height="16px" src="' + spinner + '</img></span></div>');
+    $(daddy).append('<div class="qrcode" style="float: right; max-width: 175px"></div>');
     var css = "box-shadow: 3px 3px 4px grey; filter: progid:DXImageTransform.Microsoft.Shadow(Strength=4, Direction=135, Color='#444444'); border-radius: 5px !important; margin: 5px";
-    qrdiv.append('<img class="qrcode" align="center" style="' + css + '" src="http://chart.apis.google.com/chart?cht=qr&chs=' + size + '&choe=UTF-8&chl=' + link.href + '">');
+    $(daddy).append('<img class="qrcode" align="center" style="' + css + '" src="http://chart.apis.google.com/chart?cht=qr&chs=' + size + '&choe=UTF-8&chl=' + link.href + '">');
     debugLog("qrcodify_link() --> " + link.href, true);
   }
 }
