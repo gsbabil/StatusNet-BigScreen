@@ -3,9 +3,9 @@
 // @namespace      status.inside.nicta.com.au/gsbabil
 // @description    StatusNet Auto-refresh, QR-code and Infinite-scroll
 // @require        http://code.jquery.com/jquery-latest.min.js
-// @include        http://status.inside.nicta.com.au/
+// @include        http://status.inside.nicta.com.au/*
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.6
+// @version        0.0.7
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
 
@@ -205,13 +205,14 @@ function qrcodify_link(link) {
 
   var daddy = $(link).parents("div.entry-title");
   var qrdiv = daddy.children("div.qrcode");
+  var qrlinks = $(link).parent().children("a");
 
-  if(qrdiv.length == 0 && $(link).data("qrcoded") != 1) {
+  if(qrdiv.length < qrlinks.length && $(link).data("qrcoded") != 1) {
     $(link).data("qrcoded", 1);
     $(daddy).append('<div class="qrcode" style="float: right; max-width: 175px"></div>');
     var css = "box-shadow: 3px 3px 4px grey; filter: progid:DXImageTransform.Microsoft.Shadow(Strength=4, Direction=135, Color='#444444'); border-radius: 5px !important; margin: 5px";
     $(daddy).append('<img class="qrcode" align="center" style="' + css + '" src="http://chart.apis.google.com/chart?cht=qr&chs=' + size + '&choe=UTF-8&chl=' + link.href + '">');
-    debugLog("qrcodify_link() --> " + link.href, true);
+    debugLog("qrcodify_link() --> " + link.href + " qrlinks:" + qrlinks.length, true);
   }
 }
 
