@@ -4,8 +4,9 @@
 // @description    StatusNet Auto-refresh, QR-code and Infinite-scroll
 // @require        http://code.jquery.com/jquery-latest.min.js
 // @include        http://status.inside.nicta.com.au/*
+// @exclude        http://status.inside.nicta.com.au/notice/new?*
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.7
+// @version        0.0.8
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
 
@@ -112,13 +113,20 @@ function isOnScreen(elem) {
 }
 
 function fancify_page() {
-  debugLog("fancify_page()"); /* Babil: Remove left-hand-side local navigation column */
-  $("div#site_nav_local_views").remove(); /* Babil: Remove the header and the footer*/
+  debugLog("fancify_page()");
+
+  $("div#site_nav_local_views").remove();
   $("div#header").remove();
   $("div#footer").remove();
   $("div#tagcloud").remove();
   $("div#featured_users").remove();
-  $("div#export_data").remove(); /* Olivier: Embigen everything */
+  $("div#export_data").remove();
+  $(".input_form_nav_tab").remove();
+
+  /* Babil: remove all input fields */
+  $("input").remove();
+
+  /* Olivier: Embigen everything */
   $("div#wrap").css({
     "width": "99%"
   });
@@ -151,7 +159,13 @@ function fancify_page() {
     "left": "auto",
     "right": 0,
     "float": "right",
+    "width" : "23%",
     "max-width": "25%"
+  });
+
+  /* Babil: bigger font for the status messages */
+  $(".notices").each(function(i, item){
+    $(item).css("font-size", "18px");
   });
 }
 
