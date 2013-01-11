@@ -27,11 +27,11 @@ var logout_url = "http://" + hostname + "/main/logout";
 var title = "Nicta StatusNet";
 var blacklist = [hostname, "^mailto:", "^javascript:", "geonames\.org", ];
 var whitelist = [hostname + "/url", ];
-var monospace_font = false;
 var refreshInterval = 10000;
 var refreshTimeout;
 var now = new Date();
 var before = new Date();
+var monospace_font = false;
 
 $(document).ready(function() {
   handleKeypress();
@@ -47,6 +47,7 @@ $(parent.document).scroll(function() {
 function mutation() {
   addCustomCss();
   addQRcode();
+  addThumbnail();
 }
 
 function refreshContent() {
@@ -153,7 +154,7 @@ function addCustomCss() {
     $("body").css("font-family", "Monospace");
     $(".notice_data-text").css("font-family", "Monospace");
     $(".notices").each(function(i, item){
-      $(item).css("font-size", "17px");
+      $(item).css("font-size", "16px");
     });
   }
 
@@ -319,5 +320,21 @@ function handleKeypress() {
       window.open(logout_url, '_blank');
     }
 
+  });
+}
+
+function addThumbnail() {
+  var image_ext = ["\.gif", "\.jpg", "\.jpeg", "\.bmp", "\.png", "\.tif", "\.tiff"];
+  $("p.entry-content > a").each(function(i, a){
+      $(image_ext).each(function(i, ext){
+          if (a.href.match(new RegExp(ext, "i"))) {
+              if ( $("img.thumbnail", $(a).parent()).length > 0 || $(a).data("thumbnail") > 0 ) {
+                debugLog("addThumbnail() --> already thumbnailed", true);
+              } else {
+                $(a).parent().append("<img class='thumbnail' height='92px' width='128px' style='float:right;' src=" + a.href + "></img>");
+                $(a).data("thumbnail", 1);
+              }
+          }
+      });
   });
 }
