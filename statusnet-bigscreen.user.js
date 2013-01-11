@@ -55,10 +55,10 @@ function refreshContent() {
       cache: true,
       ifModified: true,
     });
-    if($("head").data("refreshContent_progress") != 1) {
-      $("head").data("refreshContent_progress", 1);
+    if($("head").data("refreshContent_inprogress") != 1) {
+      $("head").data("refreshContent_inprogress", 1);
       $('div#core').first().load(document.location.href + " div#core > *", function() {
-        $("head").data("refreshContent_progress", 0);
+        $("head").data("refreshContent_inprogress", 0);
         debugLog("current token --> " + $("input#token").attr("value"), true);
         mutation();
       });
@@ -137,8 +137,14 @@ function addCustomCss() {
 
   $(".input_form").css("float", "none");
   $("#input_form_status").css("margin-right", "2em");
+
+  /*
   $("body").css("font-family", "Monospace");
   $(".notice_data-text").css("font-family", "Monospace");
+  $(".notices").each(function(i, item){
+    $(item).css("font-size", "17px");
+  });
+  */
 
   /* Olivier: Embigen everything */
   $("div#wrap").css({
@@ -177,10 +183,6 @@ function addCustomCss() {
     "max-width": "25%"
   });
 
-  /* Babil: bigger font for the status messages */
-  $(".notices").each(function(i, item){
-    $(item).css("font-size", "17px");
-  });
 }
 
 function addQRcode(elem) {
@@ -267,13 +269,17 @@ function loadjQuery() {
 function handleKeypress() {
   $(document).keypress(function(key){
 
-    debugLog("handleKeypress() --> " + key.which + " pressed", true);
+    debugLog("handleKeypress() --> '" + String.fromCharCode(key.which) + "' pressed", true);
 
     /* Babil: if the textbox has focus, that
      * means user is typing a new message.
      */
     if ($("*:focus").is(".notice_data-text")) {
         return;
+    }
+
+    if ($("head").data("refreshContent_inprogress") == 1) {
+      return;
     }
 
     if (key.which == ('r').charCodeAt(0)) {
