@@ -4,7 +4,7 @@
 // @description    StatusNet Auto-refresh, QR-code and Infinite-scroll
 // @require        http://code.jquery.com/jquery-latest.min.js
 // @include        http://status.inside.nicta.com.au/*
-// @exclude        http://status.inside.nicta.com.au/notice/new?*
+// @exclude        http://status.inside.nicta.com.au/notice/new*
 // @exclude        http://status.inside.nicta.com.au/notice/delete/*
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @author         gsbabil <gsbabil@gmail.com>
@@ -119,8 +119,8 @@ function addCustomCss() {
 
   debugLog("addCustomCss()", true);
 
-  var curr_notice_id = $("head").data("current_notice");
-  $("#" + curr_notice_id).css("background", "#DDD");
+  $("a[href*='inreplyto']").each(function(i, a){$(a).attr("target", "_blank");});
+  $("a[href*='inreplyto']").each(function(i, a){$(a).attr("onclick", "javascript:window.open('" + $(a)[0].href + "')");});
 
   $("div#site_nav_local_views").hide();
   $("div#header").hide();
