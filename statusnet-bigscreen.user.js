@@ -8,7 +8,8 @@
 // @exclude        http://status.inside.nicta.com.au/notice/delete/*
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.10
+// @version        0.0.11
+// @updateURL      http://nicta.info/statusnet-bigscreen-js
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
 
@@ -236,7 +237,6 @@ function addQRcode(elem) {
 }
 
 function qrcodifyLink(link) {
-
   if(link.href.length < 50) {
     size = "100x100";
   } else if(link.href.length < 120) {
@@ -253,7 +253,7 @@ function qrcodifyLink(link) {
     $(link).data("qrcoded", 1);
     $(daddy).append('<div class="qrcode" style="float: right; max-width: 175px"></div>');
     var css = "float: right; box-shadow: 3px 3px 4px grey; border-radius: 5px !important; margin: 5px";
-    $(daddy).append('<img class="qrcode" align="center" style="' + css + '" src="http://chart.apis.google.com/chart?cht=qr&chs=' + size + '&choe=UTF-8&chl=' + link.href + '">');
+    $(daddy).append('<img class="qrcode" align="center" style="' + css + '" src="http://chart.apis.google.com/chart?cht=qr&chs=' + size + '&choe=UTF-8&chl=' + link.href + '" onclick=javascript:window.open("' +  link.href + '")>');
     debugLog("qrcodifyLink() --> " + link.href + " qrlinks:" + qrlinks.length, true);
   }
 }
@@ -331,7 +331,7 @@ function addThumbnail() {
               if ( $("img.thumbnail", $(a).parent()).length > 0 || $(a).data("thumbnail") > 0 ) {
                 debugLog("addThumbnail() --> already thumbnailed", true);
               } else {
-                $(a).parent().append("<img class='thumbnail' height='92px' width='128px' style='float:right;' src=" + a.href + "></img>");
+                $(a).parent().append("<img class='thumbnail' height='92px' width='128px' style='float:right;' src='" + a.href + "' onclick=javascript:window.open('" + a.href + "') ></img>");
                 $(a).data("thumbnail", 1);
               }
           }
