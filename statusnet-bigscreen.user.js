@@ -8,10 +8,14 @@
 // @exclude        http://status.inside.nicta.com.au/notice/delete/*
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.9
+// @version        0.0.10
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
 
+/* Babil: this is *essential* when the script doesn't run with GreaseMonkey,
+ * but through the bookmarklet. GreaseMonkey's @require parameter otherwise
+ * takes care of it.
+ */
 loadjQuery();
 
 var DEBUG = false;
@@ -23,6 +27,7 @@ var logout_url = "http://" + hostname + "/main/logout";
 var title = "Nicta StatusNet";
 var blacklist = [hostname, "^mailto:", "^javascript:", "geonames\.org", ];
 var whitelist = [hostname + "/url", ];
+var monospace_font = false;
 var refreshInterval = 10000;
 var refreshTimeout;
 var now = new Date();
@@ -130,21 +135,27 @@ function addCustomCss() {
   $("div#export_data").hide();
   $(".input_form_nav_tab").hide();
 
-  /* Babil: remove all input fields */
+  /* Babil: remove all input fields by default */
   $("input").hide();
-  $("[name*='favor-submit']").show();
 
+  /* Babil: selectively choose the input fields to display */
+  $("[name*='favor-submit']").show();
+  $("input[title*='this user']").show();
+  $("input[title*='Flag profile']").show();
+
+  /* Babil: right align QR-codes */
+  $("img.qrcode").css("float", "right");
 
   $(".input_form").css("float", "none");
   $("#input_form_status").css("margin-right", "2em");
 
-  /*
-  $("body").css("font-family", "Monospace");
-  $(".notice_data-text").css("font-family", "Monospace");
-  $(".notices").each(function(i, item){
-    $(item).css("font-size", "17px");
-  });
-  */
+  if (monospace_font == true) {
+    $("body").css("font-family", "Monospace");
+    $(".notice_data-text").css("font-family", "Monospace");
+    $(".notices").each(function(i, item){
+      $(item).css("font-size", "17px");
+    });
+  }
 
   /* Olivier: Embigen everything */
   $("div#wrap").css({
@@ -240,7 +251,7 @@ function qrcodifyLink(link) {
   if(qrdiv.length < qrlinks.length && $(link).data("qrcoded") != 1) {
     $(link).data("qrcoded", 1);
     $(daddy).append('<div class="qrcode" style="float: right; max-width: 175px"></div>');
-    var css = "box-shadow: 3px 3px 4px grey; filter: progid:DXImageTransform.Microsoft.Shadow(Strength=4, Direction=135, Color='#444444'); border-radius: 5px !important; margin: 5px";
+    var css = "float: right; box-shadow: 3px 3px 4px grey; border-radius: 5px !important; margin: 5px";
     $(daddy).append('<img class="qrcode" align="center" style="' + css + '" src="http://chart.apis.google.com/chart?cht=qr&chs=' + size + '&choe=UTF-8&chl=' + link.href + '">');
     debugLog("qrcodifyLink() --> " + link.href + " qrlinks:" + qrlinks.length, true);
   }
