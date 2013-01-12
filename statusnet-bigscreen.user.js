@@ -8,7 +8,7 @@
 // @exclude        http://status.inside.nicta.com.au/notice/delete/*
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.12
+// @version        0.0.13
 // @updateURL      http://nicta.info/statusnet-bigscreen-js
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
@@ -29,7 +29,7 @@ var logout_url = "http://" + hostname + "/main/logout";
 var title = "Nicta StatusNet";
 var blacklist = [hostname, "^mailto:", "^javascript:", "geonames\.org", ];
 var whitelist = [hostname + "/url", ];
-var refreshInterval = 10000;
+var refreshInterval = 9999;
 var refreshTimeout;
 var now = new Date();
 var before = new Date();
@@ -41,7 +41,7 @@ $(document).ready(function() {
   refreshContent();
 });
 
-$(parent.document).scroll(function() {
+$(window).scroll(function() {
   infiniteScroll();
   mutation();
 });
@@ -77,7 +77,8 @@ function refreshContent() {
       });
     }
   }
-  refreshTimeout = window.setTimeout(refreshContent, 1000);
+  infiniteScroll();
+  refreshTimeout = window.setTimeout(refreshContent, 500);
 }
 
 function infiniteScroll() {
@@ -306,7 +307,6 @@ function loadjQuery() {
   })();
 }
 
-
 function showReplyDialog(in_reply_to) {
   $("head").data("keyEvent_inprogress", 1)
 
@@ -315,7 +315,7 @@ function showReplyDialog(in_reply_to) {
     reply_to = in_reply_to;
   }
 
-  $("div#input_form_status").show();
+  $("div#input_form_status").fadeIn('fast');
   $("div#input_form_status *").show();
   $("span.count").hide();
   $("select#notice_to").attr("value", "public:site");
@@ -327,7 +327,24 @@ function showReplyDialog(in_reply_to) {
     $("div#input_form_status form").submit(function() {
       $("div#input_form_status input#notice_in-reply-to").attr("value",
           $("div#input_form_status input#notice_in-reply-to-2").attr("value"));
-      return true;
+
+      $("div#input_form_status form legend").append("<img style='margin-left: 10px' id='submit_spinner' src=" + spinner + "></img>");
+      $.ajax({
+         data: $(this).serialize(),
+         url: this.action,
+         type: this.method,
+         error: function() {
+          showPopup("Submit failed!", "#FA6F7C");
+          $("img#submit_spinner").remove();
+         },
+         success: function(results) {
+          showPopup("Message posted!", "#ADDD44");
+          hideReplyDialog();
+          $("img#submit_spinner").remove();
+         }
+      });
+
+      return false;
     });
   }
 
@@ -338,7 +355,7 @@ function showReplyDialog(in_reply_to) {
 
 function hideReplyDialog() {
   $("head").data("keyEvent_inprogress", 0)
-  $("div#input_form_status").hide();
+  $("div#input_form_status").fadeOut('slow');
   $("div#input_form_status *").hide();
   refreshTimeout = window.setTimeout(refreshContent, 1000);
 }
@@ -401,4 +418,29 @@ function addThumbnail() {
       }
     });
   });
+}
+
+function showPopup(text, color){
+  var id = "popup_" + new Date().getTime();
+  var popup_color = '#FCFFD1';
+
+  if (color != 'undefined') {
+    popup_color = color;
+  }
+
+  $('<div class="popup" id=' + id + '>' + text + '</div>').appendTo('body');
+  $('div.popup').css({
+    'position': 'absolute',
+    'top': $(window).scrollTop() + 9,
+    'left': 10,
+    'background-color': popup_color,
+    'border-radius': '5px',
+    'padding': '0.1em',
+    'min-width': '10em',
+    'border-color': '#CCC',
+    'border-style': 'solid',
+    'border-width': '1px',
+    'text-align': 'center',
+  });
+  setTimeout(function(){$(".popup").fadeOut('slow'); $(".popup").remove();}, 3000);
 }
