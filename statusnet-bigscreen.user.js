@@ -9,7 +9,7 @@
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @exclude        http://status.inside.nicta.com.au/settings/profile
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.15
+// @version        0.0.16
 // @updateURL      http://nicta.info/statusnet-bigscreen-js
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
@@ -31,10 +31,13 @@ var config = {
   'login_key' : 'l',
   'logout_key' : 'L',
   'settings_key' : 's',
-  'next_highlight_key' : 'j',
-  'prev_highlight_key' : 'k',
+  'next_mesg_highlight_key' : 'j',
+  'prev_mesg_highlight_key' : 'k',
+  'next_page_highlight_key' : 'n',
+  'prev_page_highlight_key' : 'p',
+  'page_length' : 10,
   'toggleQrcode_key' : 'q',
-  'highlighted_notice_top_margin' : 100,
+  'highlighted_notice_top_margin' : 150,
   'maximum_notice_length' : 240,
   'good_popup_color' : '#ADDD44',
   'bad_popup_color' : '#FF8400',
@@ -96,7 +99,12 @@ function refreshPage() {
         if ($("head").data("key_event_inprogress") != 1) {
           var new_content = $("div#content_inner", $(html));
           $("div#content_inner").first().replaceWith(new_content);
-          $("div#content_inner").data("last_refreshed", new Date().getTime());
+          $("div#content_inner").first().data("last_refreshed", new Date().getTime());
+
+          var new_aside = $("div#aside_primary", $(html));
+          $("div#aside_primary").first().replaceWith(new_aside);
+          $("div#aside_primary").first().data("last_refreshed", new Date().getTime());
+
 
           var new_token = $("input#token", $(html)).first().attr("value");
           logDebug("refreshPage() --> old token: " + $("input#token").attr("value") + " new token: " + new_token, true);
@@ -140,7 +148,7 @@ function infiniteScroll() {
             mutation();
           }
         });
-        refreshTimeout = window.setTimeout(refreshPage, 1000);
+        refreshTimeout = window.setTimeout(refreshPage, 500);
       }
     } else {
       logDebug("infiniteScroll() --> inprogress");
@@ -417,7 +425,7 @@ function hideReplyForm() {
   $("head").data("key_event_inprogress", 0)
   $("div#input_form_status").fadeOut('slow');
   $("div#input_form_status *").hide();
-  refreshTimeout = window.setTimeout(refreshPage, 1000);
+  refreshTimeout = window.setTimeout(refreshPage, 500);
 }
 
 function handleKeyboadInput() {
@@ -473,19 +481,34 @@ function handleKeyboadInput() {
       toggleQrcode();
     }
 
-    if(String.fromCharCode(key.which) == config.next_highlight_key) {
+    if(String.fromCharCode(key.which) == config.next_mesg_highlight_key) {
       if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
         return;
       }
       highlightNotice(+1);
     }
 
-    if(String.fromCharCode(key.which) == config.prev_highlight_key) {
+    if(String.fromCharCode(key.which) == config.prev_mesg_highlight_key) {
       if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
         return;
       }
       time_last_key_pressed = new Date().getTime();
       highlightNotice(-1);
+    }
+
+    if(String.fromCharCode(key.which) == config.next_page_highlight_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      highlightNotice(+config.page_length);
+    }
+
+    if(String.fromCharCode(key.which) == config.prev_page_highlight_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      time_last_key_pressed = new Date().getTime();
+      highlightNotice(-config.page_length);
     }
 
     if(String.fromCharCode(key.which) == config.reply_key) {
