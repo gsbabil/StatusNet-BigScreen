@@ -2,20 +2,21 @@
 // @name           StatusNet-BigScreen
 // @namespace      status.inside.nicta.com.au/gsbabil
 // @description    StatusNet Auto-refresh, QR-code and Infinite-scroll
-// @require        http://code.jquery.com/jquery-latest.min.js
+// @require        http://code.jquery.com/jquery-1.8.3.min.js
 // @include        http://status.inside.nicta.com.au/*
 // @exclude        http://status.inside.nicta.com.au/notice/new*
 // @exclude        http://status.inside.nicta.com.au/notice/delete/*
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @exclude        http://status.inside.nicta.com.au/settings/profile
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.18
+// @version        0.0.19
 // @updateURL      http://nicta.info/statusnet-bigscreen-js
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
 
 
 var config = {
+  'jquery_url' : 'http://code.jquery.com/jquery-latest.min.js',
   'hostname' : location.host,
   'login_url' : 'http://' + location.host + '/main/login',
   'logout_url' : 'http://' + location.host + '/main/logout',
@@ -24,12 +25,15 @@ var config = {
   'qrcode_blacklist' : [location.host, "^mailto:", "^javascript:", "geonames\.org", ],
   'qrcode_whitelist' : [location.host + "/url", ],
   'auto_refresh_interval' : 9999,
-  'custom_font' : {'name' : 'Monda, Segoe Ui Symbol', 'size' : '17px'},
+  'custom_font' : {'name' : 'Monda, Segoe Ui Symbol', 'size' : '16px'},
   'qrcode_enabled' : false,
-  'custom_css_enabled' : true,
+  'thumbnail_enabled' : true,
+  'infinite_scroll_enabled' : true,
+  'auto_refresh_enabled' : true,
+  'cleaner_css_enabled' : false,
   'notice_highlight_color' : '#FCF4B0',
   'help_key' : 'h',
-  'public_page_key' : '0',
+  'public_timeline_key' : 'u',
   'reply_key' : 'r',
   'login_key' : 'l',
   'logout_key' : 'L',
@@ -39,8 +43,12 @@ var config = {
   'next_page_highlight_key' : 'n',
   'prev_page_highlight_key' : 'p',
   'toggle_qrcode_key' : 'q',
+  'toggle_thumbnail_key' : 't',
+  'toggle_infinite_scroll_key' : 'i',
+  'toggle_auto_refresh_key' : 'a',
+  'toggle_cleaner_css_key' : 'c',
   'expand_conversation_key' : 'e',
-  'highlighted_notice_top_margin' : 150,
+  'highlighted_notice_top_margin' : 120,
   'maximum_notice_length' : 240,
   'good_popup_color' : '#ADDD44',
   'bad_popup_color' : '#FF8400',
@@ -58,16 +66,17 @@ var spinner = "data:image/gif;base64,R0lGODlhEAAQAMQAAP///+7u7t3d3bu7u6qqqpmZmYi
 
 
 
-var refreshTimeout = null;
+var auto_refresh_timeout = null;
 var keypressTimeout = null;
 var scrollTimeout = null;
 var previousScrollTop = 0;
 var now = new Date();
 var before = new Date();
+var last_popup_color = "";
 
 $(document).ready(function() {
   loadWebfont();
-  refreshPage();
+  autoRefresh();
   mutation();
   handleKeyboard();
 });
@@ -97,29 +106,32 @@ function scrollEnded() {
   } else {
     topAsCurrentHighlighted("up");
   }
-  addHighlightCss();
+  applyHighlightCss();
 }
 
 function mutation() {
   removeDuplicates();
-  addCustomCss();
+  alwayApplyCss();
+  applyCleanerCss();
   addQrcode();
   addThumbnail();
 }
 
-function refreshPage() {
+function autoRefresh() {
+  if (config.auto_refresh_enabled == false) {
+    return;
+  }
+
   now = new Date();
   var elapsedTime = (now.getTime() - before.getTime());
   document.title = "[" + (elapsedTime / 1000).toPrecision(4) + "] - " + config.page_title;
-  logDebug('refreshPage() --> ' + elapsedTime.toPrecision(4));
+  logDebug('autoRefresh() --> ' + elapsedTime.toPrecision(4));
   if(elapsedTime > config.auto_refresh_interval) {
     before = new Date();
-    if($("head").data("refreshPage_inprogress") != 1
-        || $("head").data("key_event_inprogress") != 1) {
-      $("head").data("refreshPage_inprogress", 1);
+    if($("head").data("autoRefresh_inprogress") != 1 || $("head").data("key_event_inprogress") != 1) {
+      $("head").data("autoRefresh_inprogress", 1);
       $.ajax({
         url: document.location.href,
-        ifModified: true,
         cache: false,
       }).done(function(html) {
         if ($("head").data("key_event_inprogress") != 1) {
@@ -133,29 +145,33 @@ function refreshPage() {
 
 
           var new_token = $("input#token", $(html)).first().attr("value");
-          logDebug("refreshPage() --> old token: " + $("input#token").attr("value") + " new token: " + new_token);
+          logDebug("autoRefresh() --> old token: " + $("input#token").attr("value") + " new token: " + new_token);
           $("input#token").each(function(){
             $(this).attr("value", new_token);
           });
 
-          $("head").data("refreshPage_inprogress", 0);
+          $("head").data("autoRefresh_inprogress", 0);
           mutation();
         }
       });
     }
   }
   infiniteScroll();
-  refreshTimeout = window.setTimeout(refreshPage, 500);
+  auto_refresh_timeout = window.setTimeout(autoRefresh, 500);
 }
 
 function infiniteScroll() {
+  if (config.infinite_scroll_enabled == false) {
+    return;
+  }
+
   if($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
     logDebug("infiniteScroll() --> bottom!");
     if($("head").data("infiniteScroll_inprogress") != 1) {
       $("head").data("infiniteScroll_inprogress", 1);
       next = $("a[rel=next]").last();
       if(next.length > 0) {
-        clearTimeout(refreshTimeout);
+        clearTimeout(auto_refresh_timeout);
         var href = next[next.length - 1].href;
         logDebug("infiniteScroll() --> " + href);
         var id = "infiniteScroll_" + href.replace(new RegExp('.*?page=(\\d+)$', 'i'), '$1');
@@ -163,7 +179,6 @@ function infiniteScroll() {
         $("div#content").last().append("<div id='" + id + "'></div>");
         $.ajax({
           url: href,
-          ifModified: true,
           cache: false,
         }).done(function(html) {
           if ($("head").data("key_event_inprogress") != 1) {
@@ -174,7 +189,7 @@ function infiniteScroll() {
             mutation();
           }
         });
-        refreshTimeout = window.setTimeout(refreshPage, 500);
+        auto_refresh_timeout = window.setTimeout(autoRefresh, 500);
       }
     } else {
       logDebug("infiniteScroll() --> inprogress");
@@ -205,8 +220,17 @@ function isOnScreen(elem, completely) {
   }
 }
 
-function addCustomCss() {
-  if (config.custom_css_enabled == false) {
+function alwayApplyCss() {
+  currentHighlighted();
+  applyHighlightCss();
+  popupCss(last_popup_color);
+  showHelpCss();
+}
+
+function applyCleanerCss() {
+  alwayApplyCss();
+
+  if (config.cleaner_css_enabled == false) {
     return;
   }
 
@@ -214,10 +238,7 @@ function addCustomCss() {
     return;
   }
 
-  logDebug("addCustomCss() --> adding ...");
-
-  currentHighlighted();
-  addHighlightCss();
+  logDebug("applyCleanerCss() --> adding ...");
 
   $("a[href*='inreplyto']").each(function(i, a) {
     var in_reply_to = a.href.replace(new RegExp(".*inreplyto=(\\d+)$", "i"), "$1");
@@ -236,6 +257,7 @@ function addCustomCss() {
     $("input#notice_action-submit").height() - $("input#notice_action-submit").height());
   $("input#notice_action-submit").css("margin-left",
     $("div#input_form_status").width() - $("input#notice_action-submit").width());
+  $("div#input_form_status, input#notice_action-submit").css("box-shadow", '8px 8px 5px #888');
 
   $("div#site_nav_local_views").hide();
   $("div#header").hide();
@@ -368,7 +390,7 @@ function qrcodify_link(link) {
 function loadJquery() {
   (function() {
     var script = document.createElement("SCRIPT");
-    script.src = 'http://code.jquery.com/jquery-latest.min.js';
+    script.src = config.jquery_url;
     script.type = 'text/javascript';
     document.getElementsByTagName("head")[0].appendChild(script);
 
@@ -399,7 +421,6 @@ function showReplyForm(in_reply_to) {
     reply_to = in_reply_to;
   }
 
-  $("div#input_form_status, input#notice_action-submit").css("box-shadow", '8px 8px 5px #888');
   $("div#input_form_status").fadeIn(100);
   $("div#input_form_status *").show();
 
@@ -435,25 +456,27 @@ function showReplyForm(in_reply_to) {
           $("img#submit_spinner").remove();
          },
          success: function(results) {
-          showPopup("Message posted!", "#ADDD44");
+          showPopup("Message posted!", config.good_popup_color);
           hideReplyForm();
           $("img#submit_spinner").remove();
          }
       });
       return false;
     });
+
+    $("body").click(function(){hideReplyForm();})
   }
 
   $("input#notice_in-reply-to-2").attr("value", reply_to);
   $("textarea.notice_data-text").focus();
-  clearTimeout(refreshTimeout);
+  clearTimeout(auto_refresh_timeout);
 }
 
 function hideReplyForm() {
   $("head").data("key_event_inprogress", 0)
   $("div#input_form_status").fadeOut('slow');
-  $("div#input_form_status *").hide();
-  refreshTimeout = window.setTimeout(refreshPage, 500);
+  // $("div#input_form_status *").hide();
+  auto_refresh_timeout = window.setTimeout(autoRefresh, 500);
 }
 
 function handleKeyboard() {
@@ -461,8 +484,7 @@ function handleKeyboard() {
   /* Babil: proper keyboard input detection across browser is broken.
    * keydown() is used to capture special keys in webkit browser e.g. Chrome
    */
-  // if ($.browser.webkit) {
-    if (navigator.userAgent.search("Chrome") >= 0) {
+    if(navigator.userAgent.search("Chrome") >= 0) {
     $(document).keydown(function(key) {
       logDebug("handleKeyboard() --> '" + String.fromCharCode(key.which) + "' pressed", true);
 
@@ -477,7 +499,7 @@ function handleKeyboard() {
       }
 
       if(key.ctrlKey && (key.keyCode == 10 || key.keyCode == 13)) {
-        logDebug("submitting reply-form ... ", true);
+        logDebug("submitting reply-form ... ");
         if($("div#input_form_status").is(":visible") == true) {
           var textarea = $("textarea[name='status_textarea']");
           $(textarea).val($(textarea).val().substring(0, config.maximum_notice_length));
@@ -493,7 +515,6 @@ function handleKeyboard() {
     var keyCode = key.keyCode || key.which;
     var arrow = {left: 37, up: 38, right: 39, down: 40};
 
-    // if ($.browser.mozilla) {
     if (navigator.userAgent.search("Firefox") >= 0) {
       if(key.keyCode == 27) {
         if($("div#input_form_status").is(":visible") == true) {
@@ -506,7 +527,7 @@ function handleKeyboard() {
       }
 
       if(key.ctrlKey && (key.keyCode == 10 || key.keyCode == 13)) {
-        logDebug("submitting reply-form ... ", true);
+        logDebug("submitting reply-form ... ");
         if($("div#input_form_status").is(":visible") == true) {
           var textarea = $("textarea[name='status_textarea']");
           $(textarea).val($(textarea).val().substring(0, config.maximum_notice_length));
@@ -527,6 +548,34 @@ function handleKeyboard() {
         return;
       }
       toggleQrcode();
+    }
+
+    if(String.fromCharCode(key.which) == config.toggle_thumbnail_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      toggleThumbnail();
+    }
+
+    if(String.fromCharCode(key.which) == config.toggle_infinite_scroll_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      toggleInfiniteScroll();
+    }
+
+    if(String.fromCharCode(key.which) == config.toggle_auto_refresh_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      toggleAutoRefresh();
+    }
+
+    if(String.fromCharCode(key.which) == config.toggle_cleaner_css_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      toggleCleanerCss();
     }
 
     if(String.fromCharCode(key.which) == config.expand_conversation_key) {
@@ -580,15 +629,31 @@ function handleKeyboard() {
         return;
       }
       window.open(config.login_url, '_self');
-      showPopup("Opening login page", config.good_popup_color);
+      showPopup("Opening login page ...", config.good_popup_color);
     }
 
-    if(String.fromCharCode(key.which) == config.public_page_key) {
+    if(String.fromCharCode(key.which) == config.public_timeline_key) {
       if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
         return;
       }
-      window.open("http://" + config.hostname, '_self');
-      showPopup("Opening public page", config.good_popup_color);
+
+      showPopup("Reloading public page ...", config.good_popup_color);
+      clearTimeout(auto_refresh_timeout);
+      $.ajax({
+        url: "http://" + config.hostname,
+        cache: false,
+        success: function(html) {
+          $("div#core").fadeOut("fast");
+          var new_content = $("div#core", $(html));
+          logDebug("reloading public page --> new_content.length: " + new_content.html().length, true);
+          $("div#core").replaceWith(new_content);
+          $("div#core").data("last_refreshed", new Date().getTime());
+          $("div#core").fadeIn("fast");
+        },
+      }).done(function(){
+          auto_refresh_timeout = window.setTimeout(autoRefresh, 500);
+          mutation();
+        });
     }
 
     if(String.fromCharCode(key.which) == config.settings_key) {
@@ -596,7 +661,7 @@ function handleKeyboard() {
         return;
       }
       window.open(config.settings_url, '_self');
-      showPopup("Opening settings page", config.good_popup_color);
+      showPopup("Opening settings page ...", config.good_popup_color);
     }
 
     if(String.fromCharCode(key.which) == config.logout_key) {
@@ -607,14 +672,13 @@ function handleKeyboard() {
       var spinner = showSpinner($('body'), new Date().getTime());
       $.ajax({
         url: config.logout_url,
-        ifModified: true,
         cache: false,
         error: function(xhr) {
-          showPopup(xhr.status + ' - ' + xhr.statusText, '#FF8400');
+          showPopup(xhr.status + ' - ' + xhr.statusText, config.bad_popup_color);
           $(spinner).remove();
         }
       }).done(function(html){
-          showPopup('You are logged out', '#ADDD44');
+          showPopup('You are logged out.', config.good_popup_color);
           $(spinner).remove();
           mutation();
       });
@@ -673,7 +737,7 @@ function highlightNextNotice(offset) {
   var max_len = notices.length - 1;
   var curr_highlighted_id = currentHighlighted();
 
-  logDebug("highlightNextNotice() --> curr_highlighted_id:" + curr_highlighted_id + " offset: " + offset, true);
+  logDebug("highlightNextNotice() --> curr_highlighted_id:" + curr_highlighted_id + " offset: " + offset);
 
   /* Babil: now given the curr_highlighted_id, find the next_notice_id */
   var i = notices.index($("li[id*=" + curr_highlighted_id + "]"));
@@ -692,7 +756,7 @@ function highlightNextNotice(offset) {
     next_highlighted_id = curr_highlighted_id;
   }
 
-  logDebug("highlightNextNotice() --> i: " + i +  " k: " + k +" length:" + notices.length, true);
+  logDebug("highlightNextNotice() --> i: " + i +  " k: " + k +" length:" + notices.length);
 
   /* Babil: if next_highlighted_id is outside viewport, scroll to it */
   if (isOnScreen($(notices[k]), true) == false) {
@@ -703,8 +767,8 @@ function highlightNextNotice(offset) {
 
   /* Babil: save id and apply highlighting  */
   $("head").data("curr_highlighted_id", next_highlighted_id);
-  addHighlightCss();
-  logDebug("highlightNextNotice() --> next_highlighted_id:" + next_highlighted_id, true);
+  applyHighlightCss();
+  logDebug("highlightNextNotice() --> next_highlighted_id:" + next_highlighted_id);
 
 }
 
@@ -739,7 +803,7 @@ function topAsCurrentHighlighted(direction) {
   removeDuplicates();
   var notices = $("li[id*='notice-']");
 
-  logDebug("topAsCurrentHighlighted() --> curr_highlighted_id: " + curr_highlighted_id + " isOnScreen: " + isOnScreen(m.children(".entry-title").first()), true);
+  logDebug("topAsCurrentHighlighted() --> curr_highlighted_id: " + curr_highlighted_id + " isOnScreen: " + isOnScreen(m.children(".entry-title").first()));
 
   if(isOnScreen(m.children(".entry-title").first()) == false) {
     for (var i=0; i<notices.length; i++) {
@@ -747,7 +811,7 @@ function topAsCurrentHighlighted(direction) {
         curr_highlighted_id = $(notices[i]).attr("id").replace(new RegExp(".*notice-(\\d+)$", "i"), "$1");
         $("head").data("curr_highlighted_id", curr_highlighted_id);
 
-        logDebug("topAsCurrentHighlighted() --> new top curr_highlighted_id: " + curr_highlighted_id, true);
+        logDebug("topAsCurrentHighlighted() --> new top curr_highlighted_id: " + curr_highlighted_id);
 
         /* Babil: if next_highlighted_id is outside viewport, scroll to it */
         $('html, body').animate({
@@ -760,9 +824,9 @@ function topAsCurrentHighlighted(direction) {
   }
 }
 
-function addHighlightCss() {
+function applyHighlightCss() {
   var notice = $("li[id*=" + $("head").data("curr_highlighted_id") + "]");
-  logDebug("addHighlightCss() --> notice");
+  logDebug("applyHighlightCss() --> notice");
 
   /* Babil: remove previous highlights */
   $("li[id*='notice-']").each(function(i, li){
@@ -798,6 +862,63 @@ function toggleQrcode() {
   }
 }
 
+function toggleInfiniteScroll() {
+  if (config.infinite_scroll_enabled == true) {
+    config.infinite_scroll_enabled = false;
+    showPopup("Infinite-scroll disabled.", config.bad_popup_color);
+  } else {
+    config.infinite_scroll_enabled = true;
+    mutation();
+    showPopup("Infinite-scroll enabled.", config.good_popup_color);
+  }
+}
+
+function toggleAutoRefresh() {
+  if (config.auto_refresh_enabled == true) {
+    config.auto_refresh_enabled = false;
+    showPopup("Auto-refresh disabled.", config.bad_popup_color);
+  } else {
+    config.auto_refresh_enabled = true;
+    autoRefresh();
+    mutation();
+    showPopup("Auto-refresh enabled.", config.good_popup_color);
+  }
+}
+
+function toggleCleanerCss() {
+  var show_reply = false;
+  if($("div#input_form_status").is(":visible") == true) {
+    show_reply = true;
+  }
+
+  if (config.cleaner_css_enabled == true) {
+    config.cleaner_css_enabled = false;
+    $("*").removeAttr( 'style' );
+    showPopup("Cleaner CSS disabled.", config.bad_popup_color);
+    alwayApplyCss();
+  } else {
+    config.cleaner_css_enabled = true;
+    showPopup("Cleaner CSS enabled.", config.good_popup_color);
+    alwayApplyCss();
+    applyCleanerCss();
+  }
+}
+
+function toggleThumbnail() {
+  if (config.thumbnail_enabled == true) {
+    config.thumbnail_enabled = false;
+    $("img.thumbnail").fadeOut('slow');
+    $(".attachment-thumbnail").fadeOut('slow');
+    showPopup("Thumbnail disabled.", config.bad_popup_color);
+  } else {
+    config.thumbnail_enabled = true;
+    mutation();
+    $("img.thumbnail").fadeIn('slow');
+    $(".attachment-thumbnail").fadeIn('slow');
+    showPopup("Thumbnail enabled.", config.good_popup_color);
+  }
+}
+
 function removeDuplicates() {
   var notices = $("li[id*='notice-']");
   var uniq = {};
@@ -820,32 +941,23 @@ function expandConversation() {
       parent = curr_highlighted_li;
   }
 
-  logDebug(parent, true);
-
   var a = $("a[href*='conversation']", parent);
   if (a.length > 0) {
     window.open(a[0].href, '_blank');
-    logDebug("expandConversation() --> " + a[0].href, true);
+    logDebug("expandConversation() --> " + a[0].href);
   } else {
-    showPopup("Conversaion link not found.", config.bad_popup_color);
+    showPopup("Conversation already expanded.", config.bad_popup_color);
   }
 }
 
+function popupCss(color) {
+  last_popup_color = color;
 
-function showPopup(text, color){
-  var id = "popup_" + new Date().getTime();
-  var popup_color = '#FCFFD1';
-
-  if (typeof color != 'undefined') {
-    popup_color = color;
-  }
-
-  $('<div class="popup" id=' + id + '>' + text + '</div>').prependTo('body');
   $('div.popup').css({
     'position': 'absolute',
     'top': $(window).scrollTop() + 5,
     'left': 5,
-    'background-color': popup_color,
+    'background-color': last_popup_color,
     'padding': '0.1em',
     'min-width': '10em',
     'border-color': '#000',
@@ -854,6 +966,12 @@ function showPopup(text, color){
     'text-align': 'center',
     'z-index': '10000',
   });
+}
+
+function showPopup(text, color){
+  var id = "popup_" + new Date().getTime();
+  $('<div class="popup" id=' + id + '>' + text + '</div>').prependTo('body');
+  popupCss(color);
 
   window.setTimeout(function() {
     $("div#" + id).fadeOut('slow');
@@ -861,12 +979,7 @@ function showPopup(text, color){
   }, 3000);
 }
 
-function showHelp() {
-  if ($("div#help_popup").length > 0) {
-    return;
-  }
-
-  $("<div id='help_popup'></div>").prependTo("body");
+function showHelpCss() {
   $("div#help_popup").css({
     "position" : "fixed",
     'top': 5,
@@ -876,19 +989,6 @@ function showHelp() {
     'font-weight' : 'bold',
   });
 
-  var table_html = '<table id="help_table">' +
-  '<tr><td>Help</td><td id="help_key"></td></tr>' +
-  '<tr><td>Public Page</td><td id="public_page_key"></td></tr>' +
-  '<tr><td>Reply</td><td id="reply_key"></td></tr>' +
-  '<tr><td>Next Message</td><td id="next_mesg_highlight_key"></td></tr>' +
-  '<tr><td>Previous Message</td><td id="prev_mesg_highlight_key"></td></tr>' +
-  '<tr><td>Next Page</td><td id="next_page_highlight_key"></td></tr>' +
-  '<tr><td>Previous page</td><td id="prev_page_highlight_key"></td></tr>' +
-  '<tr><td>Login</td><td id="login_key"></td></tr>' +
-  '<tr><td>Logout</td><td id="logout_key"></td></tr>' +
-  '</table>';
-
-  $(table_html).appendTo("div#help_popup");
   $("#help_table td").css({
     "border" : "1px solid #000",
     "background-color" : "#cd5c5c",
@@ -897,24 +997,63 @@ function showHelp() {
     'padding-left' : '1em',
     'padding-right' : '1em',
   });
+
   $("#help_table td[id*='key']").css({
     "text-align" : "center",
     "min-width" : "5em",
   });
+
   $("#help_table").css({
     'box-shadow' : '8px 8px 5px #888',
   });
+}
+
+function showHelp() {
+  if ($("div#help_popup").length > 0) {
+    return;
+  }
+
+  $("<div id='help_popup'></div>").prependTo("body");
+
+  var table_html = '<table id="help_table">' +
+  '<tr><td>Help</td><td id="help_key"></td></tr>' +
+  '<tr><td>Public Timeline</td><td id="public_timeline_key"></td></tr>' +
+  '<tr><td>Reply</td><td id="reply_key"></td></tr>' +
+  '<tr><td>Login</td><td id="login_key"></td></tr>' +
+  '<tr><td>Logout</td><td id="logout_key"></td></tr>' +
+  '<tr><td>Settings Page</td><td id="settings_key"></td></tr>' +
+  '<tr><td>Next Message</td><td id="next_mesg_highlight_key"></td></tr>' +
+  '<tr><td>Previous Message</td><td id="prev_mesg_highlight_key"></td></tr>' +
+  '<tr><td>Next Page</td><td id="next_page_highlight_key"></td></tr>' +
+  '<tr><td>Previous page</td><td id="prev_page_highlight_key"></td></tr>' +
+  '<tr><td>Expand Conversaion</td><td id="expand_conversation_key"></td></tr>' +
+  '<tr><td>Toggle QR-code</td><td id="toggle_qrcode_key"></td></tr>' +
+  '<tr><td>Toggle Thumbnail</td><td id="toggle_thumbnail_key"></td></tr>' +
+  '<tr><td>Toggle Infinite-scroll</td><td id="toggle_infinite_scroll_key"></td></tr>' +
+  '<tr><td>Toggle Auto-refresh</td><td id="toggle_auto_refresh_key"></td></tr>' +
+  '<tr><td>Toggle Cleaner CSS</td><td id="toggle_cleaner_css_key"></td></tr>' +
+  '</table>';
+
+  $(table_html).appendTo("div#help_popup");
 
   $("td#help_key").text(config.help_key);
-  $("td#public_page_key").text(config.public_page_key);
+  $("td#public_timeline_key").text(config.public_timeline_key);
   $("td#reply_key").text(config.reply_key);
+  $("td#login_key").text(config.login_key);
+  $("td#logout_key").text(config.logout_key);
+  $("td#settings_key").text(config.settings_key);
   $("td#next_mesg_highlight_key").text(config.next_mesg_highlight_key);
   $("td#prev_mesg_highlight_key").text(config.prev_mesg_highlight_key);
   $("td#next_page_highlight_key").text(config.next_page_highlight_key);
   $("td#prev_page_highlight_key").text(config.prev_page_highlight_key);
-  $("td#login_key").text(config.login_key);
-  $("td#logout_key").text(config.logout_key);
+  $("td#expand_conversation_key").text(config.expand_conversation_key);
+  $("td#toggle_qrcode_key").text(config.toggle_qrcode_key);
+  $("td#toggle_thumbnail_key").text(config.toggle_thumbnail_key);
+  $("td#toggle_infinite_scroll_key").text(config.toggle_infinite_scroll_key);
+  $("td#toggle_auto_refresh_key").text(config.toggle_auto_refresh_key);
+  $("td#toggle_cleaner_css_key").text(config.toggle_cleaner_css_key);
 
+  showHelpCss();
   $("body").click(function(){hideHelp();})
 }
 
@@ -922,3 +1061,4 @@ function hideHelp() {
   $("div#help_popup").fadeOut('slow');
   $("div#help_popup").remove();
 }
+
