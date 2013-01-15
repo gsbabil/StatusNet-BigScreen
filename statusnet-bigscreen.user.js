@@ -9,7 +9,7 @@
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @exclude        http://status.inside.nicta.com.au/settings/profile
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.16
+// @version        0.0.18
 // @updateURL      http://nicta.info/statusnet-bigscreen-js
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
@@ -19,6 +19,7 @@ var config = {
   'hostname' : location.host,
   'login_url' : 'http://' + location.host + '/main/login',
   'logout_url' : 'http://' + location.host + '/main/logout',
+  'settings_url' : 'http://' + location.host + '/settings/profile',
   'page_title' : 'Nicta StatusNet',
   'qrcode_blacklist' : [location.host, "^mailto:", "^javascript:", "geonames\.org", ],
   'qrcode_whitelist' : [location.host + "/url", ],
@@ -27,6 +28,8 @@ var config = {
   'qrcode_enabled' : false,
   'custom_css_enabled' : true,
   'notice_highlight_color' : '#FCF4B0',
+  'help_key' : 'h',
+  'public_page_key' : 'p',
   'reply_key' : 'r',
   'login_key' : 'l',
   'logout_key' : 'L',
@@ -35,8 +38,8 @@ var config = {
   'prev_mesg_highlight_key' : 'k',
   'next_page_highlight_key' : 'n',
   'prev_page_highlight_key' : 'p',
-  'page_length' : 10,
-  'toggleQrcode_key' : 'q',
+  'toggle_qrcode_key' : 'q',
+  'expand_conversation_key' : 'e',
   'highlighted_notice_top_margin' : 150,
   'maximum_notice_length' : 240,
   'good_popup_color' : '#ADDD44',
@@ -55,24 +58,47 @@ var spinner = "data:image/gif;base64,R0lGODlhEAAQAMQAAP///+7u7t3d3bu7u6qqqpmZmYi
 
 
 
-var refreshTimeout;
-var keypressTimeout;
+var refreshTimeout = null;
+var keypressTimeout = null;
+var scrollTimeout = null;
+var previousScrollTop = 0;
 var now = new Date();
 var before = new Date();
-var time_last_key_pressed = new Date();
-
 
 $(document).ready(function() {
   loadWebfont();
   refreshPage();
   mutation();
-  handleKeyboadInput();
+  handleKeyboard();
 });
 
 $(window).scroll(function() {
   infiniteScroll();
   mutation();
+  handleScroll();
 });
+
+function handleScroll() {
+  if ( scrollTimeout === null ) {
+      scrollStarted();
+  } else {
+      clearTimeout(scrollTimeout);
+  }
+  scrollTimeout = setTimeout(scrollEnded, 500);
+}
+
+function scrollStarted() {
+  previousScrollTop = $(window).scrollTop();
+}
+
+function scrollEnded() {
+  if ($(window).scrollTop() - previousScrollTop > 0) {
+    topAsCurrentHighlighted("down");
+  } else {
+    topAsCurrentHighlighted("up");
+  }
+  addHighlightCss();
+}
 
 function mutation() {
   removeDuplicates();
@@ -107,7 +133,7 @@ function refreshPage() {
 
 
           var new_token = $("input#token", $(html)).first().attr("value");
-          logDebug("refreshPage() --> old token: " + $("input#token").attr("value") + " new token: " + new_token, true);
+          logDebug("refreshPage() --> old token: " + $("input#token").attr("value") + " new token: " + new_token);
           $("input#token").each(function(){
             $(this).attr("value", new_token);
           });
@@ -190,6 +216,7 @@ function addCustomCss() {
 
   logDebug("addCustomCss() --> adding ...");
 
+  currentHighlighted();
   addHighlightCss();
 
   $("a[href*='inreplyto']").each(function(i, a) {
@@ -372,6 +399,7 @@ function showReplyForm(in_reply_to) {
     reply_to = in_reply_to;
   }
 
+  $("div#input_form_status, input#notice_action-submit").css("box-shadow", '8px 8px 5px #888');
   $("div#input_form_status").fadeIn(100);
   $("div#input_form_status *").show();
 
@@ -428,18 +456,23 @@ function hideReplyForm() {
   refreshTimeout = window.setTimeout(refreshPage, 500);
 }
 
-function handleKeyboadInput() {
+function handleKeyboard() {
 
   /* Babil: proper keyboard input detection across browser is broken.
    * keydown() is used to capture special keys in webkit browser e.g. Chrome
    */
-  if ($.browser.webkit) {
+  // if ($.browser.webkit) {
+    if (navigator.userAgent.search("Chrome") >= 0) {
     $(document).keydown(function(key) {
-      logDebug("handleKeyboadInput() --> '" + String.fromCharCode(key.which) + "' pressed", true);
+      logDebug("handleKeyboard() --> '" + String.fromCharCode(key.which) + "' pressed", true);
 
       if(key.keyCode == 27) {
         if($("div#input_form_status").is(":visible") == true) {
           hideReplyForm();
+          return false;
+        }
+        if($("div#help_popup").is(":visible") == true) {
+          hideHelp();
         }
       }
 
@@ -455,12 +488,20 @@ function handleKeyboadInput() {
   }
 
   $(document).keypress(function(key) {
-    logDebug("handleKeyboadInput() --> '" + String.fromCharCode(key.which) + "' pressed", true);
+    logDebug("handleKeyboard() --> '" + String.fromCharCode(key.which) + "' pressed", true);
 
-    if ($.browser.mozilla) {
+    var keyCode = key.keyCode || key.which;
+    var arrow = {left: 37, up: 38, right: 39, down: 40};
+
+    // if ($.browser.mozilla) {
+    if (navigator.userAgent.search("Firefox") >= 0) {
       if(key.keyCode == 27) {
         if($("div#input_form_status").is(":visible") == true) {
           hideReplyForm();
+          return false;
+        }
+        if($("div#help_popup").is(":visible") == true) {
+          hideHelp();
         }
       }
 
@@ -474,41 +515,53 @@ function handleKeyboadInput() {
       }
     }
 
-    if(String.fromCharCode(key.which) == config.toggleQrcode_key) {
+    if(String.fromCharCode(keyCode) == config.help_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      showHelp();
+    }
+
+    if(String.fromCharCode(key.which) == config.toggle_qrcode_key) {
       if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
         return;
       }
       toggleQrcode();
     }
 
-    if(String.fromCharCode(key.which) == config.next_mesg_highlight_key) {
+    if(String.fromCharCode(key.which) == config.expand_conversation_key) {
       if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
         return;
       }
-      highlightNotice(+1);
+      expandConversation();
     }
 
-    if(String.fromCharCode(key.which) == config.prev_mesg_highlight_key) {
+    if(String.fromCharCode(key.which) == config.next_mesg_highlight_key || keyCode == arrow.down) {
       if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
         return;
       }
-      time_last_key_pressed = new Date().getTime();
-      highlightNotice(-1);
+      highlightNextNotice(+1);
+    }
+
+    if(String.fromCharCode(key.which) == config.prev_mesg_highlight_key || keyCode == arrow.up) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      highlightNextNotice(-1);
     }
 
     if(String.fromCharCode(key.which) == config.next_page_highlight_key) {
       if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
         return;
       }
-      highlightNotice(+config.page_length);
+      $(window).scrollTop($(window).scrollTop() + $(window).height());
     }
 
     if(String.fromCharCode(key.which) == config.prev_page_highlight_key) {
       if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
         return;
       }
-      time_last_key_pressed = new Date().getTime();
-      highlightNotice(-config.page_length);
+      $(window).scrollTop($(window).scrollTop() - $(window).height());
     }
 
     if(String.fromCharCode(key.which) == config.reply_key) {
@@ -527,6 +580,23 @@ function handleKeyboadInput() {
         return;
       }
       window.open(config.login_url, '_self');
+      showPopup("Opening login page", config.good_popup_color);
+    }
+
+    if(String.fromCharCode(key.which) == config.public_page_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      window.open("http://" + config.hostname, '_self');
+      showPopup("Opening public page", config.good_popup_color);
+    }
+
+    if(String.fromCharCode(key.which) == config.settings_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+      window.open(config.settings_url, '_self');
+      showPopup("Opening settings page", config.good_popup_color);
     }
 
     if(String.fromCharCode(key.which) == config.logout_key) {
@@ -549,7 +619,6 @@ function handleKeyboadInput() {
           mutation();
       });
     }
-
   });
 }
 
@@ -581,36 +650,6 @@ function showSpinner(element, id) {
   return $('div#spinner_' + id);
 }
 
-function showPopup(text, color){
-  var id = "popup_" + new Date().getTime();
-  var popup_color = '#FCFFD1';
-
-  if (typeof color != 'undefined') {
-    popup_color = color;
-  }
-
-  $('<div class="popup" id=' + id + '>' + text + '</div>').prependTo('body');
-  $('div.popup').css({
-    'position': 'absolute',
-    'top': $(window).scrollTop() + 5,
-    'left': 5,
-    'background-color': popup_color,
-    'padding': '0.1em',
-    'min-width': '10em',
-    'border-color': '#000',
-    'border-style': 'solid',
-    'border-width': '1.5px',
-    'text-align': 'center',
-    'z-index': '10000',
-  });
-
-  window.setTimeout(function(){
-    $("div#" + id).fadeOut('slow');
-    $("div#" + id).remove();
-  }, 3000);
-
-}
-
 function loadWebfont() {
  $("<link href='http://fonts.googleapis.com/css?family=Monda&subset=latin,latin-ext' rel='stylesheet' type='text/css'>").appendTo("head");
 
@@ -628,47 +667,53 @@ function loadWebfont() {
  })();
 }
 
-function highlightNotice(direction) {
+function highlightNextNotice(offset) {
+  removeDuplicates();
   var notices = $("li[id*='notice-']");
-  var curr_highlighted_id = selectFirstHighlight();
+  var max_len = notices.length - 1;
+  var curr_highlighted_id = currentHighlighted();
 
-  logDebug("highlightNotice() --> curr_highlighted_id:" + curr_highlighted_id, true);
+  logDebug("highlightNextNotice() --> curr_highlighted_id:" + curr_highlighted_id + " offset: " + offset, true);
 
   /* Babil: now given the curr_highlighted_id, find the next_notice_id */
   var i = notices.index($("li[id*=" + curr_highlighted_id + "]"));
+  var k = i + offset;
 
-  /* Babil: to avoid loop, check if next_highlighted_id is different from curr_highlighted_id */
-  var next_highlighted_id = "";
-  for (var k=i+direction; k < notices.length && k >= 0; k=k+direction) {
+  if (k >=0 && k <= max_len) {
     var next_highlighted_id = $(notices[k]).attr("id").replace(new RegExp(".*notice-(\\d+)$", "i"), "$1");
-    if (next_highlighted_id != curr_highlighted_id) {
-      break;
-    }
   }
 
-  if (k < 0 ) {k = 0; next_highlighted_id = curr_highlighted_id;}
-  if (k > notices.length - 1) {k = notices.length - 1; next_highlighted_id = curr_highlighted_id;}
-
-  logDebug("highlightNotice() --> i: " + i +  " k: " + k +" length:" + notices.length, true);
-
-  if (i >= 0) {
-    $("head").data("curr_highlighted_id", next_highlighted_id);
-    addHighlightCss();
-    logDebug("highlightNotice() --> next_highlighted_id:" + next_highlighted_id, true);
-
-    /* Babil: if next_highlighted_id is outside viewport, scroll to it */
-    if (isOnScreen($(notices[k]), true) == false) {
-      $('html, body').animate({
-        scrollTop: $(notices[k]).offset().top - config.highlighted_notice_top_margin,
-      }, 10);
-    }
+  if (k < 0 ) {
+    k = 0;
+    next_highlighted_id = curr_highlighted_id;
   }
+  if (k > max_len) {
+    k = max_len;
+    next_highlighted_id = curr_highlighted_id;
+  }
+
+  logDebug("highlightNextNotice() --> i: " + i +  " k: " + k +" length:" + notices.length, true);
+
+  /* Babil: if next_highlighted_id is outside viewport, scroll to it */
+  if (isOnScreen($(notices[k]), true) == false) {
+    $('html, body').animate({
+      scrollTop: $(notices[k]).offset().top - config.highlighted_notice_top_margin,
+    }, 'fast');
+  }
+
+  /* Babil: save id and apply highlighting  */
+  $("head").data("curr_highlighted_id", next_highlighted_id);
+  addHighlightCss();
+  logDebug("highlightNextNotice() --> next_highlighted_id:" + next_highlighted_id, true);
+
 }
 
-function selectFirstHighlight() {
+function currentHighlighted() {
+  removeDuplicates();
+  var notices = $("li[id*='notice-']");
+  var curr_highlighted_id;
+
   if (typeof $("head").data("curr_highlighted_id") == 'undefined') {
-    removeDuplicates();
-    var notices = $("li[id*='notice-']");
     notices.each(function(i, li) {
       if (isOnScreen(li) == true) {
         curr_highlighted_id = $(li).attr("id").replace(new RegExp(".*notice-(\\d+)$", "i"), "$1");
@@ -676,16 +721,46 @@ function selectFirstHighlight() {
         return false;
       }
     });
-
-    return curr_highlighted_id;
   } else {
-    return $("head").data("curr_highlighted_id");
+    curr_highlighted_id = $("head").data("curr_highlighted_id");
+  }
+
+  return curr_highlighted_id;
+}
+
+/* Babil: this function should only be called from the handleKeyboard().
+ * currentHighlighted() should be called first to make sure tjat
+ * current_highlighted_id is not unset.
+ */
+function topAsCurrentHighlighted(direction) {
+  var curr_highlighted_id = currentHighlighted();
+  var m = $("li[id*=" + curr_highlighted_id + "]");
+
+  removeDuplicates();
+  var notices = $("li[id*='notice-']");
+
+  logDebug("topAsCurrentHighlighted() --> curr_highlighted_id: " + curr_highlighted_id + " isOnScreen: " + isOnScreen(m.children(".entry-title").first()), true);
+
+  if(isOnScreen(m.children(".entry-title").first()) == false) {
+    for (var i=0; i<notices.length; i++) {
+      if (isOnScreen($(notices[i])) == true) {
+        curr_highlighted_id = $(notices[i]).attr("id").replace(new RegExp(".*notice-(\\d+)$", "i"), "$1");
+        $("head").data("curr_highlighted_id", curr_highlighted_id);
+
+        logDebug("topAsCurrentHighlighted() --> new top curr_highlighted_id: " + curr_highlighted_id, true);
+
+        /* Babil: if next_highlighted_id is outside viewport, scroll to it */
+        $('html, body').animate({
+          scrollTop: $(notices[i]).offset().top - config.highlighted_notice_top_margin,
+        }, 'fast');
+
+        return;
+      }
+    }
   }
 }
 
 function addHighlightCss() {
-  selectFirstHighlight();
-
   var notice = $("li[id*=" + $("head").data("curr_highlighted_id") + "]");
   logDebug("addHighlightCss() --> notice");
 
@@ -705,7 +780,7 @@ function addHighlightCss() {
     "background-color": config.notice_highlight_color,
     "padding" : "1.5em",
     "border-color" : "black",
-    "border-width" : "1.5px",
+    "border-width" : "1px",
     "border-style" : "solid"
   });
 }
@@ -733,4 +808,117 @@ function removeDuplicates() {
     else
         uniq[id] = true;
   });
+}
+
+function expandConversation() {
+  curr_highlighted_id = currentHighlighted();
+  curr_highlighted_li = $("li[id*='" + curr_highlighted_id + "']");
+
+
+  var parent = curr_highlighted_li.parents("li[id*='notice-']");
+  if (parent.length == 0) {
+      parent = curr_highlighted_li;
+  }
+
+  logDebug(parent, true);
+
+  var a = $("a[href*='conversation']", parent);
+  if (a.length > 0) {
+    window.open(a[0].href, '_blank');
+    logDebug("expandConversation() --> " + a[0].href, true);
+  } else {
+    showPopup("Conversaion link not found.", config.bad_popup_color);
+  }
+}
+
+
+function showPopup(text, color){
+  var id = "popup_" + new Date().getTime();
+  var popup_color = '#FCFFD1';
+
+  if (typeof color != 'undefined') {
+    popup_color = color;
+  }
+
+  $('<div class="popup" id=' + id + '>' + text + '</div>').prependTo('body');
+  $('div.popup').css({
+    'position': 'absolute',
+    'top': $(window).scrollTop() + 5,
+    'left': 5,
+    'background-color': popup_color,
+    'padding': '0.1em',
+    'min-width': '10em',
+    'border-color': '#000',
+    'border-style': 'solid',
+    'border-width': '1.5px',
+    'text-align': 'center',
+    'z-index': '10000',
+  });
+
+  window.setTimeout(function() {
+    $("div#" + id).fadeOut('slow');
+    $("div#" + id).remove();
+  }, 3000);
+}
+
+function showHelp() {
+  if ($("div#help_popup").length > 0) {
+    return;
+  }
+
+  $("<div id='help_popup'></div>").prependTo("body");
+  $("div#help_popup").css({
+    "position" : "fixed",
+    'top': 5,
+    'left': 5,
+    'text-align' : 'center',
+    'z-index' : '9999',
+    'font-weight' : 'bold',
+  });
+
+  var table_html = '<table id="help_table">' +
+  '<tr><td>Help</td><td id="help_key"></td></tr>' +
+  '<tr><td>Public Page</td><td id="public_page_key"></td></tr>' +
+  '<tr><td>Reply</td><td id="reply_key"></td></tr>' +
+  '<tr><td>Next Message</td><td id="next_mesg_highlight_key"></td></tr>' +
+  '<tr><td>Previous Message</td><td id="prev_mesg_highlight_key"></td></tr>' +
+  '<tr><td>Next Page</td><td id="next_page_highlight_key"></td></tr>' +
+  '<tr><td>Previous page</td><td id="prev_page_highlight_key"></td></tr>' +
+  '<tr><td>Login</td><td id="login_key"></td></tr>' +
+  '<tr><td>Logout</td><td id="logout_key"></td></tr>' +
+  '</table>';
+
+  $(table_html).appendTo("div#help_popup");
+  $("#help_table td").css({
+    "border" : "1px solid #000",
+    "background-color" : "#cd5c5c",
+    "text-align" : "left",
+    'font-weight' : 'normal',
+    'padding-left' : '1em',
+    'padding-right' : '1em',
+  });
+  $("#help_table td[id*='key']").css({
+    "text-align" : "center",
+    "min-width" : "5em",
+  });
+  $("#help_table").css({
+    'box-shadow' : '8px 8px 5px #888',
+  });
+
+  $("td#help_key").text(config.help_key);
+  $("td#public_page_key").text(config.public_page_key);
+  $("td#reply_key").text(config.reply_key);
+  $("td#next_mesg_highlight_key").text(config.next_mesg_highlight_key);
+  $("td#prev_mesg_highlight_key").text(config.prev_mesg_highlight_key);
+  $("td#next_page_highlight_key").text(config.next_page_highlight_key);
+  $("td#prev_page_highlight_key").text(config.prev_page_highlight_key);
+  $("td#login_key").text(config.login_key);
+  $("td#logout_key").text(config.logout_key);
+
+  $("body").click(function(){hideHelp();})
+}
+
+function hideHelp() {
+  $("div#help_popup").fadeOut('slow');
+  $("div#help_popup").remove();
 }
