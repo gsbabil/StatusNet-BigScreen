@@ -9,7 +9,7 @@
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @exclude        http://status.inside.nicta.com.au/settings/profile
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.21
+// @version        0.0.22
 // @updateURL      http://nicta.info/statusnet-bigscreen-js
 // @downloadURL    http://nicta.info/statusnet-bigscreen-js
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
@@ -81,7 +81,7 @@ $(document).ready(function() {
   mutation();
   handleKeyboard();
   setDefaultAudience();
-  showPopup("Script loaded! Press 'h' to for help.")
+  showPopup("Script loaded! Press 'h' to for help.", config.good_popup_color);
 });
 
 $(window).scroll(function() {
@@ -234,7 +234,14 @@ function alwaysApplyCss() {
 
   $("a[href*='inreplyto']").each(function(i, a) {
     var in_reply_to = a.href.replace(new RegExp(".*inreplyto=(\\d+)$", "i"), "$1");
-    $(a).click(function(){showReplyForm(in_reply_to); return false;});
+    $(a).click(function(){
+      if (in_reply_to >= 0) {
+        $("head").data("curr_highlighted_id", in_reply_to);
+        applyHighlightCss();
+      }
+      showReplyForm(in_reply_to);
+      return false;
+    });
   });
 
   /* Babil: fixed position for the reply box */
@@ -844,7 +851,7 @@ function topAsCurrentHighlighted(direction) {
 
   logDebug("topAsCurrentHighlighted() --> curr_highlighted_id: " + curr_highlighted_id + " isOnScreen: " + isOnScreen(m.children(".entry-title").first()));
 
-  if(isOnScreen(m.children(".entry-title").first()) == false) {
+  if(isOnScreen(m.children(".entry-title").last()) == false) {
     for (var i=0; i<notices.length; i++) {
       if (isOnScreen($(notices[i])) == true) {
         curr_highlighted_id = $(notices[i]).attr("id").replace(new RegExp(".*notice-(\\d+)$", "i"), "$1");
@@ -1107,5 +1114,6 @@ function hideHelp() {
 }
 
 function setDefaultAudience() {
-  $("select#notice_to").val(default_audience);
+  $("select#notice_to").val(config.default_audience);
 }
+
