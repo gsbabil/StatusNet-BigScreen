@@ -9,7 +9,7 @@
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @exclude        http://status.inside.nicta.com.au/settings/profile
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.19
+// @version        0.0.20
 // @updateURL      http://nicta.info/statusnet-bigscreen-js
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
@@ -52,6 +52,7 @@ var config = {
   'maximum_notice_length' : 240,
   'good_popup_color' : '#ADDD44',
   'bad_popup_color' : '#FF8400',
+  'default_audience' : 'public:everyone',
 }
 
 
@@ -79,6 +80,8 @@ $(document).ready(function() {
   autoRefresh();
   mutation();
   handleKeyboard();
+  setDefaultAudience();
+  showPopup("Script loaded! Press 'h' to for help.")
 });
 
 $(window).scroll(function() {
@@ -111,7 +114,7 @@ function scrollEnded() {
 
 function mutation() {
   removeDuplicates();
-  alwayApplyCss();
+  alwaysApplyCss();
   applyCleanerCss();
   addQrcode();
   addThumbnail();
@@ -220,15 +223,38 @@ function isOnScreen(elem, completely) {
   }
 }
 
-function alwayApplyCss() {
+function alwaysApplyCss() {
   currentHighlighted();
   applyHighlightCss();
   popupCss(last_popup_color);
   showHelpCss();
+
+  /* Babil: hide "write a reply" input boxes */
+  $(".notice-reply-placeholder").hide();
+
+  $("a[href*='inreplyto']").each(function(i, a) {
+    var in_reply_to = a.href.replace(new RegExp(".*inreplyto=(\\d+)$", "i"), "$1");
+    $(a).click(function(){showReplyForm(in_reply_to); return false;});
+  });
+
+  /* Babil: fixed position for the reply box */
+  $("div#input_form_status").css({
+    "padding": "1em",
+    "margin": "0em",
+    "position": "fixed",
+    "z-index": "10000",
+    "background-color": "#FFF",
+    "border-radius" : "8px",
+  });
+  $("input#notice_action-submit").css("margin-top",
+  $("input#notice_action-submit").height() - $("input#notice_action-submit").height());
+  $("input#notice_action-submit").css("margin-left",
+    $("div#input_form_status").width() - $("input#notice_action-submit").width());
+  $("div#input_form_status, input#notice_action-submit").css("box-shadow", '8px 8px 5px #888');
 }
 
 function applyCleanerCss() {
-  alwayApplyCss();
+  alwaysApplyCss();
 
   if (config.cleaner_css_enabled == false) {
     return;
@@ -239,25 +265,6 @@ function applyCleanerCss() {
   }
 
   logDebug("applyCleanerCss() --> adding ...");
-
-  $("a[href*='inreplyto']").each(function(i, a) {
-    var in_reply_to = a.href.replace(new RegExp(".*inreplyto=(\\d+)$", "i"), "$1");
-    $(a).click(function(){showReplyForm(in_reply_to); return false;});
-  });
-
-  $("div#input_form_status").css({
-    "padding": "1em",
-    "margin": "0em",
-    "position": "fixed",
-    "z-index": "10000",
-    "background-color": "#FFF",
-  });
-
-  $("input#notice_action-submit").css("margin-top",
-    $("input#notice_action-submit").height() - $("input#notice_action-submit").height());
-  $("input#notice_action-submit").css("margin-left",
-    $("div#input_form_status").width() - $("input#notice_action-submit").width());
-  $("div#input_form_status, input#notice_action-submit").css("box-shadow", '8px 8px 5px #888');
 
   $("div#site_nav_local_views").hide();
   $("div#header").hide();
@@ -416,10 +423,12 @@ function showReplyForm(in_reply_to) {
 
   $("head").data("key_event_inprogress", 1);
 
-  var reply_to = "";
+  var reply_to = currentHighlighted();
   if (typeof in_reply_to != 'undefined' && in_reply_to.match(new RegExp("\\d", "i"))) {
     reply_to = in_reply_to;
   }
+  $("input#notice_in-reply-to-2").val(reply_to);
+  $("input#notice_in-reply-to-2").text(reply_to);
 
   $("div#input_form_status").fadeIn(100);
   $("div#input_form_status *").show();
@@ -436,15 +445,13 @@ function showReplyForm(in_reply_to) {
     }
   });
 
-  $("select#notice_to").attr("value", "public:site");
   $("input#notice_private").parents("span.checkbox-wrapper").remove();
 
   if ($("input#notice_in-reply-to-2").length == 0) {
     $("div.to-selector").append("<span  style='margin-top:3px' class='checkbox-wrapper'><label>In-Reply-To: </label><input id='notice_in-reply-to-2' type='text' value='" +  reply_to + "' size='6'></input></span>");
 
     $("div#input_form_status form").submit(function() {
-      $("div#input_form_status input#notice_in-reply-to").attr("value",
-          $("div#input_form_status input#notice_in-reply-to-2").attr("value"));
+      $("div#input_form_status input#notice_in-reply-to").val($("div#input_form_status input#notice_in-reply-to-2").val());
 
       $("div#input_form_status form legend").append("<img style='margin-left: 10px' id='submit_spinner' src=" + spinner + "></img>");
       $.ajax({
@@ -464,7 +471,26 @@ function showReplyForm(in_reply_to) {
       return false;
     });
 
-    $("body").click(function(){hideReplyForm();})
+    $('body').bind('click', function(e) {
+        // if($(e.target).closest('div#input_form_status').length == 0) {
+        if($("div#input_form_status").has(e.target).length == 0) {
+          hideReplyForm();
+        }
+    });
+  }
+
+  var c = currentHighlighted();
+  var l = $("li[id*='" + c + "']").children(".entry-title").first();
+
+  /* Babil: the CSS below makes puts the reply box below the currently
+   * highlighted message.
+   */
+  if (config.cleaner_css_enabled == true) {
+    $("div#input_form_status").css({
+    "position" : "absolute",
+    "top" : $(l).offset().top + $(l).height(),
+    "left" : $(l).offset().left + $(l).width() - $("div#input_form_status").width(),
+    });
   }
 
   $("input#notice_in-reply-to-2").attr("value", reply_to);
@@ -475,8 +501,13 @@ function showReplyForm(in_reply_to) {
 function hideReplyForm() {
   $("head").data("key_event_inprogress", 0)
   $("div#input_form_status").fadeOut('slow');
-  // $("div#input_form_status *").hide();
   auto_refresh_timeout = window.setTimeout(autoRefresh, 500);
+  if (config.cleaner_css_enabled == true) {
+    $("div#input_form_status").css({
+      "visibility" : "invisible",
+      "position" : "fixed",
+    });
+  }
 }
 
 function handleKeyboard() {
@@ -638,6 +669,7 @@ function handleKeyboard() {
       }
 
       showPopup("Reloading public page ...", config.good_popup_color);
+      var spinner = showSpinner($('body'), new Date().getTime());
       clearTimeout(auto_refresh_timeout);
       $.ajax({
         url: "http://" + config.hostname,
@@ -653,6 +685,8 @@ function handleKeyboard() {
       }).done(function(){
           auto_refresh_timeout = window.setTimeout(autoRefresh, 500);
           mutation();
+          $(spinner).remove();
+          showPopup("Public page reloaded!", config.good_popup_color);
         });
     }
 
@@ -702,15 +736,20 @@ function addThumbnail() {
   });
 }
 
-function showSpinner(element, id) {
-  $('<div id=spinner_' + id + '><img src=' + spinner + '></img></div>').prependTo($(element));
-  $('div.popup').css({
+function spinnerCss() {
+  $('div[id*="spinner_"]').css({
     'position': 'absolute',
     'top': $(window).scrollTop() + 5,
     'left': 5,
     'padding': '0.1em',
+    'z-index': '10000',
   });
+}
 
+function showSpinner(element, id) {
+  $('<div id=spinner_' + id + '><img src=' + spinner + '></img></div>').prependTo($(element));
+
+  spinnerCss();
   return $('div#spinner_' + id);
 }
 
@@ -895,11 +934,11 @@ function toggleCleanerCss() {
     config.cleaner_css_enabled = false;
     $("*").removeAttr( 'style' );
     showPopup("Cleaner CSS disabled.", config.bad_popup_color);
-    alwayApplyCss();
+    alwaysApplyCss();
   } else {
     config.cleaner_css_enabled = true;
     showPopup("Cleaner CSS enabled.", config.good_popup_color);
-    alwayApplyCss();
+    alwaysApplyCss();
     applyCleanerCss();
   }
 }
@@ -1054,7 +1093,12 @@ function showHelp() {
   $("td#toggle_cleaner_css_key").text(config.toggle_cleaner_css_key);
 
   showHelpCss();
-  $("body").click(function(){hideHelp();})
+  $('body').bind('click', function(e) {
+    // if($(e.target).closest('div#input_form_status').length == 0) {
+    if($("div#help_popup").has(e.target).length == 0) {
+      hideHelp();
+    }
+  });
 }
 
 function hideHelp() {
@@ -1062,3 +1106,6 @@ function hideHelp() {
   $("div#help_popup").remove();
 }
 
+function setDefaultAudience() {
+  $("select#notice_to").val(default_audience);
+}
