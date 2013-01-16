@@ -9,9 +9,9 @@
 // @exclude        http://status.inside.nicta.com.au/main/login
 // @exclude        http://status.inside.nicta.com.au/settings/profile
 // @author         gsbabil <gsbabil@gmail.com>
-// @version        0.0.22
-// @updateURL      http://nicta.info/statusnet-bigscreen-js
-// @downloadURL    http://nicta.info/statusnet-bigscreen-js
+// @version        0.0.23
+// @updateURL      https://forge.nicta.com.au/plugins/scmgit/cgi-bin/gitweb.cgi?p=statusnet-big/statusnet-big.git;a=blob_plain;f=statusnet-bigscreen.user.js;hb=HEAD
+// @downloadURL    https://forge.nicta.com.au/plugins/scmgit/cgi-bin/gitweb.cgi?p=statusnet-big/statusnet-big.git;a=blob_plain;f=statusnet-bigscreen.user.js;hb=HEAD
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
 
@@ -36,6 +36,7 @@ var config = {
   'help_key' : 'h',
   'public_timeline_key' : 'u',
   'reply_key' : 'r',
+  'new_status_key' : 'R',
   'login_key' : 'l',
   'logout_key' : 'L',
   'settings_key' : 's',
@@ -434,6 +435,12 @@ function showReplyForm(in_reply_to) {
   if (typeof in_reply_to != 'undefined' && in_reply_to.match(new RegExp("\\d", "i"))) {
     reply_to = in_reply_to;
   }
+
+  /* Babil: when the user want's to post a new message */
+  if (in_reply_to == "new_status") {
+    reply_to = "";
+  }
+
   $("input#notice_in-reply-to-2").val(reply_to);
   $("input#notice_in-reply-to-2").text(reply_to);
 
@@ -658,6 +665,17 @@ function handleKeyboard() {
 
       if($("div#input_form_status").is(":visible") == false) {
         showReplyForm($("head").data("curr_highlighted_id"));
+        return false;
+      }
+    }
+
+    if(String.fromCharCode(key.which) == config.new_status_key) {
+      if($("*:focus").is(".notice_data-text") && $("div#input_form_status").is(":visible") == true) {
+        return;
+      }
+
+      if($("div#input_form_status").is(":visible") == false) {
+        showReplyForm("new_status");
         return false;
       }
     }
@@ -1064,6 +1082,7 @@ function showHelp() {
   var table_html = '<table id="help_table">' +
   '<tr><td>Help</td><td id="help_key"></td></tr>' +
   '<tr><td>Public Timeline</td><td id="public_timeline_key"></td></tr>' +
+  '<tr><td>New Status</td><td id="new_status_key"></td></tr>' +
   '<tr><td>Reply</td><td id="reply_key"></td></tr>' +
   '<tr><td>Login</td><td id="login_key"></td></tr>' +
   '<tr><td>Logout</td><td id="logout_key"></td></tr>' +
@@ -1072,7 +1091,7 @@ function showHelp() {
   '<tr><td>Previous Message</td><td id="prev_mesg_highlight_key"></td></tr>' +
   '<tr><td>Next Page</td><td id="next_page_highlight_key"></td></tr>' +
   '<tr><td>Previous page</td><td id="prev_page_highlight_key"></td></tr>' +
-  '<tr><td>Expand Conversaion</td><td id="expand_conversation_key"></td></tr>' +
+  '<tr><td>Expand Conversation</td><td id="expand_conversation_key"></td></tr>' +
   '<tr><td>Toggle QR-code</td><td id="toggle_qrcode_key"></td></tr>' +
   '<tr><td>Toggle Thumbnail</td><td id="toggle_thumbnail_key"></td></tr>' +
   '<tr><td>Toggle Infinite-scroll</td><td id="toggle_infinite_scroll_key"></td></tr>' +
@@ -1084,6 +1103,7 @@ function showHelp() {
 
   $("td#help_key").text(config.help_key);
   $("td#public_timeline_key").text(config.public_timeline_key);
+  $("td#new_status_key").text(config.new_status_key);
   $("td#reply_key").text(config.reply_key);
   $("td#login_key").text(config.login_key);
   $("td#logout_key").text(config.logout_key);
