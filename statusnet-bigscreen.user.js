@@ -10,8 +10,8 @@
 // @exclude        http://status.inside.nicta.com.au/settings/profile
 // @author         gsbabil <gsbabil@gmail.com>
 // @version        0.0.23
-// @updateURL      https://forge.nicta.com.au/plugins/scmgit/cgi-bin/gitweb.cgi?p=statusnet-big/statusnet-big.git;a=blob_plain;f=statusnet-bigscreen.user.js;hb=HEAD
-// @downloadURL    https://forge.nicta.com.au/plugins/scmgit/cgi-bin/gitweb.cgi?p=statusnet-big/statusnet-big.git;a=blob_plain;f=statusnet-bigscreen.user.js;hb=HEAD
+// @updateURL      http://nicta.info/statusnet-bigscreen-js
+// @downloadURL    http://nicta.info/statusnet-bigscreen-js
 // @iconURL        http://gravatar.com/avatar/10f6c9d84191bcbe69ce41177087c4d7
 // ==/UserScript==
 
@@ -25,8 +25,8 @@ var config = {
   'page_title' : 'Nicta StatusNet',
   'qrcode_blacklist' : [location.host, "^mailto:", "^javascript:", "geonames\.org", ],
   'qrcode_whitelist' : [location.host + "/url", ],
-  'auto_refresh_interval' : 9999,
-  'custom_font' : {'name' : 'Monda, Segoe Ui Symbol', 'size' : '16px'},
+  'auto_refresh_interval' : 10000,
+  'custom_font' : {'name' : 'Monda, Segoe Ui Symbol', 'size' : '1.1em'},
   'qrcode_enabled' : false,
   'thumbnail_enabled' : true,
   'infinite_scroll_enabled' : true,
