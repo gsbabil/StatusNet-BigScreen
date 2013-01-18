@@ -82,6 +82,7 @@ $(document).ready(function() {
   handleKeyboard();
   setDefaultAudience();
   showPopup("Script loaded! Press 'h' to for help.", config.good_popup_color);
+  highlightOnClick();
 });
 
 $(window).scroll(function() {
@@ -118,6 +119,7 @@ function mutation() {
   applyCleanerCss();
   addQrcode();
   addThumbnail();
+  highlightOnClick();
 }
 
 function autoRefresh() {
@@ -228,7 +230,6 @@ function alwaysApplyCss() {
   applyHighlightCss();
   popupCss(last_popup_color);
   showHelpCss();
-  highlightOnClick();
 
   /* Babil: hide "write a reply" input boxes */
   $(".notice-reply-placeholder").hide();
@@ -911,6 +912,7 @@ function applyHighlightCss() {
     "border-width" : "1px",
     "border-style" : "solid"
   });
+  logDebug("applyHighlightCss() --> " + new Date().getTime() / 1000 );
 }
 
 function toggleQrcode() {
@@ -1142,6 +1144,7 @@ function highlightOnClick() {
   notices.each(function(i, p){
       var id = $(p).attr("id").replace("notice-", "");
       $(p).children(".entry-title").first().click(function(e){
+          logDebug("highlightOnClick() --> " + new Date().getTime() / 1000);
           if (id.length > 0) {
             $("head").data("curr_highlighted_id", id);
             applyHighlightCss();
