@@ -54,7 +54,7 @@ var config = {
   'maximum_notice_length' : 240,
   'good_popup_color' : '#ADDD44',
   'bad_popup_color' : '#FF8400',
-  'default_audience' : 'public:everyone',
+  'default_audience' : 'public:everyone', // or, 'public:site' if you'd like to post to your followers only
 }
 
 
@@ -82,12 +82,9 @@ $(document).ready(function() {
   handleKeyboard();
   setDefaultAudience();
   showPopup("Script loaded! Press 'h' to for help.", config.good_popup_color);
-  highlightOnClick();
 });
 
 $(window).scroll(function() {
-  infiniteScroll();
-  mutation();
   handleScroll();
 });
 
@@ -110,7 +107,8 @@ function scrollEnded() {
   } else {
     topAsCurrentHighlighted("up");
   }
-  applyHighlightCss();
+  infiniteScroll();
+  mutation();
 }
 
 function mutation() {
@@ -233,18 +231,6 @@ function alwaysApplyCss() {
 
   /* Babil: hide "write a reply" input boxes */
   $(".notice-reply-placeholder").hide();
-
-  $("a[href*='inreplyto']").each(function(i, a) {
-    var in_reply_to = a.href.replace(new RegExp(".*inreplyto=(\\d+)$", "i"), "$1");
-    $(a).click(function(){
-      if (in_reply_to >= 0) {
-        $("head").data("curr_highlighted_id", in_reply_to);
-        applyHighlightCss();
-      }
-      showReplyForm(in_reply_to);
-      return false;
-    });
-  });
 
   /* Babil: fixed position for the reply box */
   $("div#input_form_status").css({
@@ -912,7 +898,7 @@ function applyHighlightCss() {
     "border-width" : "1px",
     "border-style" : "solid"
   });
-  logDebug("applyHighlightCss() --> " + new Date().getTime() / 1000 );
+  logDebug("applyHighlightCss() --> " + arguments.callee.caller.name +  " " + new Date().getTime() / 1000, true);
 }
 
 function toggleQrcode() {
@@ -1142,13 +1128,26 @@ function setDefaultAudience() {
 function highlightOnClick() {
   var notices = $("[id*='notice-']");
   notices.each(function(i, p){
-      var id = $(p).attr("id").replace("notice-", "");
+    var id = $(p).attr("id").replace("notice-", "");
+    if (id.length > 0) {
       $(p).children(".entry-title").first().click(function(e){
-          logDebug("highlightOnClick() --> " + new Date().getTime() / 1000);
-          if (id.length > 0) {
-            $("head").data("curr_highlighted_id", id);
-            applyHighlightCss();
-          }
+        $("head").data("curr_highlighted_id", id);
+        logDebug("highlightOnClick() --> " + new Date().getTime() / 1000, true);
+        applyHighlightCss();
       });
+    }
+  });
+
+  $("a[href*='inreplyto']").each(function(i, a) {
+    var in_reply_to = a.href.replace(new RegExp(".*inreplyto=(\\d+)$", "i"), "$1");
+    $(a).click(function(e){
+      if (in_reply_to >= 0) {
+        $("head").data("curr_highlighted_id", in_reply_to);
+      }
+      applyHighlightCss();
+      showReplyForm(in_reply_to);
+      return false;
+    });
   });
 }
+
