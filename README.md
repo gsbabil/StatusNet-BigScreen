@@ -5,9 +5,8 @@ StatusNet-BigScreen is Javascript plugin originally written for StatusNet public
 stream to be displayed on large display screens in public areas. Over the time,
 I have also added features to make it usable on desktop browsers for convenient 
 navigation through the status update streams. It can be used as a Javascript
-plugin to StatusNet or as a
-[Firefox - GreaseMonkey](http://mzl.la/1c1Tooj), [Chrome - TamperMonkey](http://bit.ly/1n9nMCx)
-and Opera user-script.
+plugin to StatusNet or as a [Firefox - GreaseMonkey][1], [Chrome - TamperMonkey][2]
+and [Opera user Javascript][3].
 
 Currently it supports the following features:
  
@@ -33,4 +32,6 @@ Currently it supports the following features:
     - `a` to toggle auto-refresh for latest status updates
     - `c` to toggle to a cleaner CSS
 
-
+[1]: http://mzl.la/1c1Tooj
+[2]: http://bit.ly/1n9nMCx  
+[3]: http://www.opera.com/docs/userjs
